@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upper SSAT Practice Test</title>
+<style>
+  body{font-family:Arial, sans-serif;background:#f7f7fb;margin:0;padding:0;color:#333;}
+  header{background:#4a6cf7;color:#fff;padding:1rem;text-align:center;}
+  .container{max-width:900px;margin:1rem auto;padding:1rem;}
+  .card{background:#fff;padding:1rem;margin:1rem 0;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.1);}
+  h2{margin-top:0;}
+  .q{margin:1rem 0;padding:.5rem;border-left:4px solid #4a6cf7;}
+  .row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+  button{padding:.5rem 1rem;border:none;border-radius:6px;cursor:pointer;}
+  .btn{background:#4a6cf7;color:#fff;}
+  .ghost{background:#eee;}
+  .progress{background:#ddd;height:10px;border-radius:5px;overflow:hidden;margin:.5rem 0;}
+  .bar{height:10px;background:#4a6cf7;width:0;transition:width .3s;}
+  .timer{font-weight:bold;color:#e63946;}
+  .expl{margin-top:.3rem;font-size:.85em;color:#444;}
+  .ok{color:green;font-weight:bold;}
+  .bad{color:red;font-weight:bold;}
+  textarea{width:100%;min-height:120px;padding:.5rem;border-radius:8px;border:1px solid #ccc;}
+  .menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Upper SSAT Practice Test</h1>
+  <p>Simulated practice with scoring, timer, and explanations — 3 practice tests available</p>
+</header>
+<div class="container">
+
+  <section class="card" id="mainMenu">
+    <h2>Main Menu — Choose a Practice Test</h2>
+    <div class="menu-grid">
+      <button class="btn" onclick="startTest(0)">Practice Test 1</button>
+      <button class="btn" onclick="startTest(1)">Practice Test 2</button>
+      <button class="btn" onclick="startTest(2)">Practice Test 3</button>
+    </div>
+    <p style="margin-top:12px" class="muted">Each test includes Quantitative, Reading, Verbal, and a Writing Sample.</p>
+  </section>
+
+  <section class="card" id="testArea" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2 id="sectionTitle"></h2>
+      <div class="row"><span class="timer" id="timer">00:00</span></div>
+    </div>
+
+    <div class="progress"><div class="bar" id="progressBar"></div></div>
+    <form id="quizForm"></form>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn" type="button" id="submitBtn">Submit</button>
+      <button class="ghost" type="button" onclick="goHome()">Exit to Menu</button>
+    </div>
+    <p id="scoreDisplay"></p>
+  </section>
+
+</div>
+
+<script>
+// --- Question Pools for Randomization ---
+const mathPool=[
+  {stem:"Solve for x: 3x - 5 = 16",choices:["7","5","21","11"],answer:0,expl:"3x-5=16 ⇒ 3x=21 ⇒ x=7."},
+  {stem:"Simplify: (2x^3)(3x^2)",choices:["5x^5","6x^5","6x^6","5x^6"],answer:1,expl:"Multiply coefficients (2*3=6) and add exponents (3+2=5)."},
+  {stem:"The diagonal of a square is 10. What is the side length?",choices:["5","5√2","10","10√2"],answer:1,expl:"Side = diagonal/√2 = 10/√2 = 5√2."},
+  {stem:"What is the solution to |x-4|=7?",choices:["x=11 or -3","x=7 or 4","x=11 or 3","x=-11 or 3"],answer:0,expl:"x-4=7 ⇒ x=11; x-4=-7 ⇒ x=-3."},
+  {stem:"If the average of 4 numbers is 12, what is their sum?",choices:["3","48","16","24"],answer:1,expl:"Mean=sum/n ⇒ sum=mean*n=12*4=48."}
+];
+
+const verbalPool=[
+  {stem:"Antonym for 'altruistic'",choices:["selfish","generous","kind","thoughtful"],answer:0,expl:"Altruistic means selfless; opposite is selfish."},
+  {stem:"Synonym for 'gregarious'",choices:["sociable","shy","lonely","quiet"],answer:0,expl:"Gregarious means sociable."},
+  {stem:"Analogy: Eloquent : Speech ::",choices:["Skillful : Painting","Fast : Run","Loud : Whisper","Silent : Talk"],answer:0,expl:"Eloquent describes speech; skillful describes painting."},
+  {stem:"Synonym for 'tenacious'",choices:["persistent","lazy","weak","timid"],answer:0,expl:"Tenacious means persistent."},
+  {stem:"Analogy: Predator : Prey ::",choices:["Doctor : Patient","Teacher : Student","Hunter : Deer","Pilot : Plane"],answer:2,expl:"Predator hunts prey; hunter hunts deer."}
+];
+
+const readingPassages=[
+  {text:"<p><b>Passage:</b> The Great Fire of London in 1666 destroyed much of the city, but it also paved the way for modernization and new architectural styles.</p>",questions:[
+    {stem:"According to the passage, what was a positive outcome of the Great Fire?",choices:["Destruction of homes","Modernization","Famine","War"],answer:1,expl:"The fire led to modernization."},
+    {stem:"What year did the Great Fire occur?",choices:["1666","1766","1566","1866"],answer:0,expl:"It occurred in 1666."}
+  ]},
+  {text:"<p><b>Passage:</b> Marie Curie’s research on radioactivity not only earned her two Nobel Prizes but also advanced medical science by enabling radiation therapy.</p>",questions:[
+    {stem:"What was one major contribution of Curie’s research?",choices:["Atomic weapons","Radiation therapy","Electricity","Vaccines"],answer:1,expl:"Her work enabled radiation therapy."},
+    {stem:"How many Nobel Prizes did Marie Curie win?",choices:["1","2","3","0"],answer:1,expl:"She won two."}
+  ]}
+];
+
+// --- Generators ---
+function genMathQs(prefix){
+  const arr=[];
+  for(let i=0;i<25;i++){
+    const q=mathPool[i%mathPool.length];
+    arr.push({id:`${prefix}_m${i+1}`,stem:`Math Q${i+1}: ${q.stem}`,choices:q.choices,answer:q.answer,expl:q.expl});
+  }
+  return arr;
+}
+
+function genVerbalQs(prefix){
+  const arr=[];
+  for(let i=0;i<40;i++){
+    const q=verbalPool[i%verbalPool.length];
+    arr.push({id:`${prefix}_v${i+1}`,stem:`Verbal Q${i+1}: ${q.stem}`,choices:q.choices,answer:q.answer,expl:q.expl});
+  }
+  return arr;
+}
+
+function genReadingQs(prefix){
+  const arr=[];
+  let qCount=0;
+  while(arr.length<40){
+    const p=readingPassages[qCount % readingPassages.length];
+    const q=p.questions[qCount % p.questions.length];
+    arr.push({id:`${prefix}_r${arr.length+1}`,stem:q.stem,choices:q.choices,answer:q.answer,expl:q.expl,passage:p.text});
+    qCount++;
+  }
+  return arr;
+}
+
+// --- Tests ---
+const tests=[
+  {title:'Practice Test 1',sections:[
+    {title:"Quantitative (Math)",time:1800,qs:genMathQs("t1")},
+    {title:"Reading",time:2400,qs:genReadingQs("t1")},
+    {title:"Verbal",time:3600,qs:genVerbalQs("t1")},
+    {title:"Writing Sample",time:1500,qs:[]}
+  ]},
+  {title:'Practice Test 2',sections:[
+    {title:"Quantitative (Math)",time:1800,qs:genMathQs("t2")},
+    {title:"Reading",time:2400,qs:genReadingQs("t2")},
+    {title:"Verbal",time:3600,qs:genVerbalQs("t2")},
+    {title:"Writing Sample",time:1500,qs:[]}
+  ]},
+  {title:'Practice Test 3',sections:[
+    {title:"Quantitative (Math)",time:1800,qs:genMathQs("t3")},
+    {title:"Reading",time:2400,qs:genReadingQs("t3")},
+    {title:"Verbal",time:3600,qs:genVerbalQs("t3")},
+    {title:"Writing Sample",time:1500,qs:[]}
+  ]}
+];
+
+// --- Core Logic ---
+let currentTest=null;
+let currentSection=0;
+let timerInterval;
+
+function startTest(testIndex){
+  currentTest=testIndex;
+  currentSection=0;
+  document.getElementById('mainMenu').style.display='none';
+  document.getElementById('testArea').style.display='block';
+  loadSection();
+}
+
+function loadSection(){
+  const sec=tests[currentTest].sections[currentSection];
+  document.getElementById('sectionTitle').textContent=tests[currentTest].title+' — '+sec.title;
+  document.getElementById('scoreDisplay').textContent='';
+  const form=document.getElementById('quizForm');
+  form.innerHTML='';
+
+  if(sec.qs.length===0){
+    form.innerHTML='<p>Write your essay below:</p><textarea id="essayBox" placeholder="Type your writing sample here..."></textarea>'+
+      '<div class="row" style="margin-top:8px"><button class="btn" onclick="finishWriting()">Finish and Return to Menu</button></div>';
+  } else {
+    let lastPassage=null;
+    sec.qs.forEach((q,i)=>{
+      if(q.passage&&q.passage!==lastPassage){
+        const passageDiv=document.createElement('div');
+        passageDiv.className='card';
+        passageDiv.innerHTML=q.passage;
+        form.appendChild(passageDiv);
+        lastPassage=q.passage;
+      }
+      const field=document.createElement('fieldset');
+      field.className='q';
+      field.innerHTML=`<legend><b>Q${i+1}.</b> ${q.stem}</legend>`+
+        q.choices.map((c,ix)=>`<label class="row mini"><input type="radio" name="${q.id}" value="${ix}"> ${String.fromCharCode(65+ix)}. ${c}</label>`).join('');
+      form.appendChild(field);
+    });
+  }
+
+  clearInterval(timerInterval);
+  let timeLeft=sec.time;
+  updateTimer(timeLeft);
+  timerInterval=setInterval(()=>{
+    timeLeft--;
+    updateTimer(timeLeft);
+    if(timeLeft<=0){clearInterval(timerInterval);gradeSection();}
+  },1000);
+}
+
+function updateTimer(s){
+  const m=Math.floor(s/60),sec=s%60;
+  document.getElementById('timer').textContent=`${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
+  const percent=(s/tests[currentTest].sections[currentSection].time)*100;
+  document.getElementById('progressBar').style.width=percent+'%';
+}
+
+document.getElementById('submitBtn').onclick=gradeSection;
+
+function gradeSection(){
+  const sec=tests[currentTest].sections[currentSection];
+  clearInterval(timerInterval);
+  if(sec.qs.length===0){
+    const essay=document.getElementById('essayBox').value;
+    localStorage.setItem(`ssat_essay_test${currentTest+1}`,essay);
+    document.getElementById('scoreDisplay').innerHTML="Essay saved locally.<br><button class='btn' onclick='goHome()'>Return to Main Menu</button>";
+    return;
+  }
+
+  let correct=0;
+  sec.qs.forEach(q=>{
+    const chosen=[...document.querySelectorAll(`[name="${q.id}"]`)].find(r=>r.checked);
+    const firstRadio=document.querySelector(`[name="${q.id}"]`);
+    const field=firstRadio?firstRadio.closest('fieldset'):null;
+    let exp=field?field.querySelector('.expl'):null;
+    if(!exp&&field){exp=document.createElement('div');exp.className='expl';field.appendChild(exp);}
+
+    if(chosen&&parseInt(chosen.value)===q.answer){correct++;if(exp)exp.innerHTML=`<span class='ok'>✔ Correct.</span> ${q.expl}`;}
+    else{if(exp)exp.innerHTML=`<span class='bad'>✘ Incorrect.</span> ${q.expl}`;}
+  });
+
+  document.getElementById('scoreDisplay').textContent=`Score: ${correct} / ${sec.qs.length}`;
+  if(currentSection<tests[currentTest].sections.length-1){
+    document.getElementById('scoreDisplay').innerHTML+=`<br><button class='btn' onclick='nextSection()'>Next Section →</button>`;
+  } else {
+    document.getElementById('scoreDisplay').innerHTML+="<br><b>Test Complete!</b><br><button class='btn' onclick='goHome()'>Finish & Return to Main Menu</button>";
+  }
+}
+
+function nextSection(){currentSection++;loadSection();}
+function finishWriting(){const essay=document.getElementById('essayBox').value;localStorage.setItem(`ssat_essay_test${currentTest+1}`,essay);alert('Essay saved locally. Returning to menu.');goHome();}
+function goHome(){clearInterval(timerInterval);document.getElementById('testArea').style.display='none';document.getElementById('mainMenu').style.display='block';}
+</script>
+</body>
+</html>
